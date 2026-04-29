@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>İnteraktif Periyodik Tablo</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Rajdhani:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #070a0f;
+    --surface: #0d1117;
+    --surface2: #161b22;
+    --surface3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --accent: #00d4ff;
+    --accent2: #00ff9d;
+    --accent3: #ff6b35;
+    --neon-blue: #00d4ff;
+    --neon-green: #00ff9d;
+    --neon-purple: #bf5af2;
+    --neon-red: #ff453a;
+    --neon-orange: #ff9f0a;
+    --neon-yellow: #ffd60a;
+
+    /* Category colors */
+    --alkali: #ff6b6b;
+    --alkaline: #ffa94d;
+    --transition: #4dabf7;
+    --post-transition: #69db7c;
+    --metalloid: #e599f7;
+    --nonmetal: #63e6be;
+    --halogen: #f783ac;
+    --noble: #a9e34b;
+    --lanthanide: #74c0fc;
+    --actinide: #ff8787;
+    --unknown: #adb5bd;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 16px 24px 8px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,212,255,0.06) 0%, transparent 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(14px, 2.5vw, 22px);
+    font-weight: 900;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--neon-blue), var(--neon-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    filter: drop-shadow(0 0 20px rgba(0,212,255,0.4));
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .main-layout {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 12px;
+  }
+
+  .top-section {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .periodic-grid {
+    display: grid;
+    grid-template-columns: repeat(18, minmax(48px, 1fr));
+    grid-template-rows: repeat(10, 56px);
+    gap: 3px;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .element-cell {
+    position: relative;
+    border-radius: 5px;
+    padding: 3px 4px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--surface2);
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .element-cell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--cat-color, #4dabf7);
+    opacity: 0.1;
+    transition: opacity 0.15s ease;
+  }
+
+  .element-cell:hover::before { opacity: 0.25; }
+  .element-cell:hover {
+    border-color: var(--cat-color, #4dabf7);
+    transform: scale(1.12);
+    z-index: 100;
+    box-shadow: 0 0 16px rgba(0,0,0,0.8), 0 0 8px var(--cat-color, #4dabf7);
+  }
+
+  .element-cell.selected {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 0 2px var(--neon-blue), 0 0 20px rgba(0,212,255,0.5);
+  }
+
+  .element-cell .atomic-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    line-height: 1;
+  }
+
+  .element-cell .symbol {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(13px, 1.4vw, 16px);
+    font-weight: 700;
+    color: var(--cat-color, #4dabf7);
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 0 4px var(--cat-color, #4dabf7));
+  }
+
+  .element-cell .el-name {
+    font-size: 7.5px;
+    color: var(--text-muted);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1;
+    letter-spacing: 0.3px;
+  }
+
+  .badge-radio {
+    position: absolute;
+    top: 1px; right: 2px;
+    font-size: 9px;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px red);
+  }
+
+  .badge-unstable {
+    position: absolute;
+    top: 1px; left: 2px;
+    font-size: 9px;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px gold);
+  }
+
+  /* Right panel */
+  .right-panel {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #three-canvas-container {
+    width: 100%;
+    height: 220px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #050810;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #three-canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .three-label {
+    position: absolute;
+    bottom: 8px; left: 0; right: 0;
+    text-align: center;
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(0,212,255,0.5);
+    pointer-events: none;
+  }
+
+  .detail-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    animation: slideIn 0.2s ease;
+  }
+
+  .detail-card.visible { display: flex; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .detail-symbol {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .detail-meta { flex: 1; }
+
+  .detail-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+
+  .detail-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .detail-badges {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid currentColor;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .badge-r { color: #ff453a; border-color: rgba(255,69,58,0.4); background: rgba(255,69,58,0.1); }
+  .badge-u { color: #ffd60a; border-color: rgba(255,214,10,0.4); background: rgba(255,214,10,0.1); }
+
+  .detail-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat-item {
+    background: var(--surface3);
+    border-radius: 7px;
+    padding: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--neon-blue);
+    font-weight: 700;
+  }
+
+  .isotopes-section { }
+
+  .isotopes-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .isotopes-list {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .iso-pill {
+    background: rgba(0,255,157,0.08);
+    border: 1px solid rgba(0,255,157,0.25);
+    color: var(--neon-green);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+  }
+
+  .placeholder-card {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 20px 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .placeholder-card .big-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.4;
+  }
+
+  /* Period/Group labels */
+  .period-label, .group-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.15);
+    cursor: default;
+    pointer-events: none;
+  }
+
+  /* Gap cell */
+  .gap-cell { background: transparent; border: none; cursor: default; }
+
+  /* Series label cells */
+  .series-label-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 0.5px;
+    cursor: default;
+  }
+
+  .element-photo-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #0a0c12;
+    flex-shrink: 0;
+  }
+
+  .element-photo {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    filter: saturate(1.1) contrast(1.05);
+    transition: transform 0.4s ease, filter 0.3s ease;
+  }
+
+  .element-photo:hover {
+    transform: scale(1.04);
+    filter: saturate(1.3) contrast(1.1);
+  }
+
+  .photo-label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 4px 8px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.75) 0%, transparent 100%);
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.4);
+    text-align: right;
+  }
+
+  @media (max-width: 900px) {
+    .top-section { flex-direction: column; }
+    .right-panel { width: 100%; flex-direction: row; flex-wrap: wrap; }
+    #three-canvas-container { flex: 1; min-width: 200px; height: 180px; }
+    .detail-card { flex: 1; min-width: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚛ PERİYODİK TABLO</h1>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div>Alkali Metal</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffa94d"></div>Toprak Alkali</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4dabf7"></div>Geçiş Metali</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#69db7c"></div>Post-Geçiş</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e599f7"></div>Metaloid</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#63e6be"></div>Ametal</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f783ac"></div>Halojen</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a9e34b"></div>Soy Gaz</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#74c0fc"></div>Lantanit</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff8787"></div>Aktinit</div>
+  </div>
+</header>
+
+<div class="main-layout">
+  <div class="top-section">
+    <div class="table-wrapper">
+      <div class="periodic-grid" id="grid"></div>
+    </div>
+
+    <div class="right-panel">
+      <div id="three-canvas-container">
+        <canvas id="three-canvas"></canvas>
+        <div class="three-label">3D ATOM VİZÜALİZER</div>
+      </div>
+
+      <div id="detail-card" class="detail-card">
+        <!-- filled by JS -->
+      </div>
+      <div id="placeholder" class="placeholder-card">
+        <div class="big-icon">⚗️</div>
+        Bir elemente tıkla<br>detayları görüntüle
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── ELEMENT DATA ────────────────────────────────────────────────────────────
+const ELEMENTS = [
+  {n:1,  s:'H',  name:'Hidrojen',     xp:1,  yp:1,  cat:'nonmetal',      density:0.0000899, mp:-259.1,  radio:false, unstable:false, iso:['¹H','²H','³H']},
+  {n:2,  s:'He', name:'Helyum',       xp:18, yp:1,  cat:'noble',         density:0.0001786, mp:-272.2,  radio:false, unstable:false, iso:['³He','⁴He']},
+  {n:3,  s:'Li', name:'Lityum',       xp:1,  yp:2,  cat:'alkali',        density:0.534,     mp:180.5,   radio:false, unstable:false, iso:['⁶Li','⁷Li']},
+  {n:4,  s:'Be', name:'Berilyum',     xp:2,  yp:2,  cat:'alkaline',      density:1.85,      mp:1287,    radio:false, unstable:false, iso:['⁹Be']},
+  {n:5,  s:'B',  name:'Bor',          xp:13, yp:2,  cat:'metalloid',     density:2.34,      mp:2076,    radio:false, unstable:false, iso:['¹⁰B','¹¹B']},
+  {n:6,  s:'C',  name:'Karbon',       xp:14, yp:2,  cat:'nonmetal',      density:2.267,     mp:3550,    radio:false, unstable:false, iso:['¹²C','¹³C','¹⁴C']},
+  {n:7,  s:'N',  name:'Azot',         xp:15, yp:2,  cat:'nonmetal',      density:0.001251,  mp:-210.0,  radio:false, unstable:false, iso:['¹⁴N','¹⁵N']},
+  {n:8,  s:'O',  name:'Oksijen',      xp:16, yp:2,  cat:'nonmetal',      density:0.001429,  mp:-218.8,  radio:false, unstable:false, iso:['¹⁶O','¹⁷O','¹⁸O']},
+  {n:9,  s:'F',  name:'Flor',         xp:17, yp:2,  cat:'halogen',       density:0.001696,  mp:-219.7,  radio:false, unstable:false, iso:['¹⁹F']},
+  {n:10, s:'Ne', name:'Neon',         xp:18, yp:2,  cat:'noble',         density:0.0009002, mp:-248.6,  radio:false, unstable:false, iso:['²⁰Ne','²²Ne']},
+  {n:11, s:'Na', name:'Sodyum',       xp:1,  yp:3,  cat:'alkali',        density:0.971,     mp:97.79,   radio:false, unstable:false, iso:['²³Na']},
+  {n:12, s:'Mg', name:'Magnezyum',    xp:2,  yp:3,  cat:'alkaline',      density:1.738,     mp:650,     radio:false, unstable:false, iso:['²⁴Mg','²⁵Mg','²⁶Mg']},
+  {n:13, s:'Al', name:'Alüminyum',    xp:13, yp:3,  cat:'post',          density:2.698,     mp:660.3,   radio:false, unstable:false, iso:['²⁷Al']},
+  {n:14, s:'Si', name:'Silikon',      xp:14, yp:3,  cat:'metalloid',     density:2.329,     mp:1414,    radio:false, unstable:false, iso:['²⁸Si','²⁹Si','³⁰Si']},
+  {n:15, s:'P',  name:'Fosfor',       xp:15, yp:3,  cat:'nonmetal',      density:1.82,      mp:44.15,   radio:false, unstable:false, iso:['³¹P']},
+  {n:16, s:'S',  name:'Kükürt',       xp:16, yp:3,  cat:'nonmetal',      density:2.067,     mp:115.2,   radio:false, unstable:false, iso:['³²S','³³S','³⁴S']},
+  {n:17, s:'Cl', name:'Klor',         xp:17, yp:3,  cat:'halogen',       density:0.003214,  mp:-101.5,  radio:false, unstable:false, iso:['³⁵Cl','³⁷Cl']},
+  {n:18, s:'Ar', name:'Argon',        xp:18, yp:3,  cat:'noble',         density:0.001784,  mp:-189.3,  radio:false, unstable:false, iso:['³⁶Ar','³⁸Ar','⁴⁰Ar']},
+  {n:19, s:'K',  name:'Potasyum',     xp:1,  yp:4,  cat:'alkali',        density:0.862,     mp:63.38,   radio:false, unstable:false, iso:['³⁹K','⁴⁰K','⁴¹K']},
+  {n:20, s:'Ca', name:'Kalsiyum',     xp:2,  yp:4,  cat:'alkaline',      density:1.54,      mp:842,     radio:false, unstable:false, iso:['⁴⁰Ca','⁴²Ca','⁴⁴Ca']},
+  {n:21, s:'Sc', name:'Skandiyum',    xp:3,  yp:4,  cat:'transition',    density:2.985,     mp:1541,    radio:false, unstable:false, iso:['⁴⁵Sc']},
+  {n:22, s:'Ti', name:'Titanyum',     xp:4,  yp:4,  cat:'transition',    density:4.507,     mp:1668,    radio:false, unstable:false, iso:['⁴⁶Ti','⁴⁷Ti','⁴⁸Ti']},
+  {n:23, s:'V',  name:'Vanadyum',     xp:5,  yp:4,  cat:'transition',    density:6.11,      mp:1910,    radio:false, unstable:false, iso:['⁵⁰V','⁵¹V']},
+  {n:24, s:'Cr', name:'Krom',         xp:6,  yp:4,  cat:'transition',    density:7.14,      mp:1907,    radio:false, unstable:false, iso:['⁵²Cr','⁵³Cr','⁵⁴Cr']},
+  {n:25, s:'Mn', name:'Mangan',       xp:7,  yp:4,  cat:'transition',    density:7.47,      mp:1246,    radio:false, unstable:false, iso:['⁵⁵Mn']},
+  {n:26, s:'Fe', name:'Demir',        xp:8,  yp:4,  cat:'transition',    density:7.874,     mp:1538,    radio:false, unstable:false, iso:['⁵⁴Fe','⁵⁶Fe','⁵⁷Fe']},
+  {n:27, s:'Co', name:'Kobalt',       xp:9,  yp:4,  cat:'transition',    density:8.9,       mp:1495,    radio:false, unstable:false, iso:['⁵⁹Co']},
+  {n:28, s:'Ni', name:'Nikel',        xp:10, yp:4,  cat:'transition',    density:8.908,     mp:1455,    radio:false, unstable:false, iso:['⁵⁸Ni','⁶⁰Ni','⁶²Ni']},
+  {n:29, s:'Cu', name:'Bakır',        xp:11, yp:4,  cat:'transition',    density:8.96,      mp:1085,    radio:false, unstable:false, iso:['⁶³Cu','⁶⁵Cu']},
+  {n:30, s:'Zn', name:'Çinko',        xp:12, yp:4,  cat:'transition',    density:7.14,      mp:419.5,   radio:false, unstable:false, iso:['⁶⁴Zn','⁶⁶Zn','⁶⁸Zn']},
+  {n:31, s:'Ga', name:'Galyum',       xp:13, yp:4,  cat:'post',          density:5.91,      mp:29.76,   radio:false, unstable:false, iso:['⁶⁹Ga','⁷¹Ga']},
+  {n:32, s:'Ge', name:'Germanyum',    xp:14, yp:4,  cat:'metalloid',     density:5.323,     mp:938.3,   radio:false, unstable:false, iso:['⁷⁰Ge','⁷²Ge','⁷⁴Ge']},
+  {n:33, s:'As', name:'Arsenik',      xp:15, yp:4,  cat:'metalloid',     density:5.727,     mp:817,     radio:false, unstable:false, iso:['⁷⁵As']},
+  {n:34, s:'Se', name:'Selenyum',     xp:16, yp:4,  cat:'nonmetal',      density:4.819,     mp:221,     radio:false, unstable:false, iso:['⁷⁶Se','⁷⁸Se','⁸⁰Se']},
+  {n:35, s:'Br', name:'Brom',         xp:17, yp:4,  cat:'halogen',       density:3.122,     mp:-7.3,    radio:false, unstable:false, iso:['⁷⁹Br','⁸¹Br']},
+  {n:36, s:'Kr', name:'Kripton',      xp:18, yp:4,  cat:'noble',         density:0.003749,  mp:-157.4,  radio:false, unstable:false, iso:['⁸⁰Kr','⁸²Kr','⁸⁴Kr']},
+  {n:37, s:'Rb', name:'Rubidyum',     xp:1,  yp:5,  cat:'alkali',        density:1.532,     mp:39.31,   radio:false, unstable:false, iso:['⁸⁵Rb','⁸⁷Rb']},
+  {n:38, s:'Sr', name:'Stronsiyum',   xp:2,  yp:5,  cat:'alkaline',      density:2.64,      mp:777,     radio:false, unstable:false, iso:['⁸⁴Sr','⁸⁶Sr','⁸⁸Sr']},
+  {n:39, s:'Y',  name:'İtriyum',      xp:3,  yp:5,  cat:'transition',    density:4.472,     mp:1526,    radio:false, unstable:false, iso:['⁸⁹Y']},
+  {n:40, s:'Zr', name:'Zirkonyum',    xp:4,  yp:5,  cat:'transition',    density:6.511,     mp:1855,    radio:false, unstable:false, iso:['⁹⁰Zr','⁹¹Zr','⁹²Zr']},
+  {n:41, s:'Nb', name:'Niyobyum',     xp:5,  yp:5,  cat:'transition',    density:8.57,      mp:2477,    radio:false, unstable:false, iso:['⁹³Nb']},
+  {n:42, s:'Mo', name:'Molibden',     xp:6,  yp:5,  cat:'transition',    density:10.28,     mp:2623,    radio:false, unstable:false, iso:['⁹²Mo','⁹⁵Mo','⁹⁸Mo']},
+  {n:43, s:'Tc', name:'Teknesyum',    xp:7,  yp:5,  cat:'transition',    density:11.5,      mp:2157,    radio:true,  unstable:false, iso:['⁹⁷Tc','⁹⁸Tc','⁹⁹Tc']},
+  {n:44, s:'Ru', name:'Rutenyum',     xp:8,  yp:5,  cat:'transition',    density:12.45,     mp:2334,    radio:false, unstable:false, iso:['¹⁰¹Ru','¹⁰²Ru','¹⁰⁴Ru']},
+  {n:45, s:'Rh', name:'Rodyum',       xp:9,  yp:5,  cat:'transition',    density:12.41,     mp:1964,    radio:false, unstable:false, iso:['¹⁰³Rh']},
+  {n:46, s:'Pd', name:'Paladyum',     xp:10, yp:5,  cat:'transition',    density:12.023,    mp:1555,    radio:false, unstable:false, iso:['¹⁰⁶Pd','¹⁰⁸Pd']},
+  {n:47, s:'Ag', name:'Gümüş',        xp:11, yp:5,  cat:'transition',    density:10.49,     mp:961.8,   radio:false, unstable:false, iso:['¹⁰⁷Ag','¹⁰⁹Ag']},
+  {n:48, s:'Cd', name:'Kadmiyum',     xp:12, yp:5,  cat:'transition',    density:8.65,      mp:321.1,   radio:false, unstable:false, iso:['¹¹²Cd','¹¹⁴Cd']},
+  {n:49, s:'In', name:'İndiyum',      xp:13, yp:5,  cat:'post',          density:7.31,      mp:156.6,   radio:false, unstable:false, iso:['¹¹³In','¹¹⁵In']},
+  {n:50, s:'Sn', name:'Kalay',        xp:14, yp:5,  cat:'post',          density:7.287,     mp:231.9,   radio:false, unstable:false, iso:['¹¹²Sn','¹²⁰Sn']},
+  {n:51, s:'Sb', name:'Antimon',      xp:15, yp:5,  cat:'metalloid',     density:6.685,     mp:630.6,   radio:false, unstable:false, iso:['¹²¹Sb','¹²³Sb']},
+  {n:52, s:'Te', name:'Tellür',       xp:16, yp:5,  cat:'metalloid',     density:6.232,     mp:449.5,   radio:false, unstable:false, iso:['¹²⁸Te','¹³⁰Te']},
+  {n:53, s:'I',  name:'İyot',         xp:17, yp:5,  cat:'halogen',       density:4.933,     mp:113.7,   radio:false, unstable:false, iso:['¹²⁷I']},
+  {n:54, s:'Xe', name:'Ksenon',       xp:18, yp:5,  cat:'noble',         density:0.005894,  mp:-111.8,  radio:false, unstable:false, iso:['¹³²Xe','¹³⁴Xe']},
+  {n:55, s:'Cs', name:'Sezyum',       xp:1,  yp:6,  cat:'alkali',        density:1.93,      mp:28.44,   radio:false, unstable:false, iso:['¹³³Cs']},
+  {n:56, s:'Ba', name:'Baryum',       xp:2,  yp:6,  cat:'alkaline',      density:3.594,     mp:727,     radio:false, unstable:false, iso:['¹³⁶Ba','¹³⁷Ba','¹³⁸Ba']},
+  {n:57, s:'La', name:'Lantan',       xp:3,  yp:9,  cat:'lanthanide',    density:6.162,     mp:920,     radio:false, unstable:false, iso:['¹³⁸La','¹³⁹La']},
+  {n:58, s:'Ce', name:'Seryum',       xp:4,  yp:9,  cat:'lanthanide',    density:6.77,      mp:798,     radio:false, unstable:false, iso:['¹⁴⁰Ce','¹⁴²Ce']},
+  {n:59, s:'Pr', name:'Praseodim',    xp:5,  yp:9,  cat:'lanthanide',    density:6.773,     mp:931,     radio:false, unstable:false, iso:['¹⁴¹Pr']},
+  {n:60, s:'Nd', name:'Neodim',       xp:6,  yp:9,  cat:'lanthanide',    density:7.007,     mp:1021,    radio:false, unstable:false, iso:['¹⁴²Nd','¹⁴⁴Nd']},
+  {n:61, s:'Pm', name:'Prometyum',    xp:7,  yp:9,  cat:'lanthanide',    density:7.26,      mp:1042,    radio:true,  unstable:true,  iso:['¹⁴⁵Pm','¹⁴⁷Pm']},
+  {n:62, s:'Sm', name:'Samaryum',     xp:8,  yp:9,  cat:'lanthanide',    density:7.52,      mp:1072,    radio:false, unstable:false, iso:['¹⁴⁷Sm','¹⁵²Sm','¹⁵⁴Sm']},
+  {n:63, s:'Eu', name:'Europiyum',    xp:9,  yp:9,  cat:'lanthanide',    density:5.243,     mp:826,     radio:false, unstable:false, iso:['¹⁵¹Eu','¹⁵³Eu']},
+  {n:64, s:'Gd', name:'Gadolinyum',   xp:10, yp:9,  cat:'lanthanide',    density:7.9,       mp:1312,    radio:false, unstable:false, iso:['¹⁵⁶Gd','¹⁵⁷Gd','¹⁵⁸Gd']},
+  {n:65, s:'Tb', name:'Terbiyum',     xp:11, yp:9,  cat:'lanthanide',    density:8.23,      mp:1356,    radio:false, unstable:false, iso:['¹⁵⁹Tb']},
+  {n:66, s:'Dy', name:'Disprosyum',   xp:12, yp:9,  cat:'lanthanide',    density:8.551,     mp:1412,    radio:false, unstable:false, iso:['¹⁶²Dy','¹⁶³Dy','¹⁶⁴Dy']},
+  {n:67, s:'Ho', name:'Holmiyum',     xp:13, yp:9,  cat:'lanthanide',    density:8.795,     mp:1472,    radio:false, unstable:false, iso:['¹⁶⁵Ho']},
+  {n:68, s:'Er', name:'Erbiyum',      xp:14, yp:9,  cat:'lanthanide',    density:9.066,     mp:1529,    radio:false, unstable:false, iso:['¹⁶⁶Er','¹⁶⁷Er','¹⁶⁸Er']},
+  {n:69, s:'Tm', name:'Tulyum',       xp:15, yp:9,  cat:'lanthanide',    density:9.321,     mp:1545,    radio:false, unstable:false, iso:['¹⁶⁹Tm']},
+  {n:70, s:'Yb', name:'İterbiyum',    xp:16, yp:9,  cat:'lanthanide',    density:6.965,     mp:824,     radio:false, unstable:false, iso:['¹⁷²Yb','¹⁷³Yb','¹⁷⁴Yb']},
+  {n:71, s:'Lu', name:'Lutesyum',     xp:17, yp:9,  cat:'lanthanide',    density:9.84,      mp:1663,    radio:false, unstable:false, iso:['¹⁷⁵Lu','¹⁷⁶Lu']},
+  {n:72, s:'Hf', name:'Hafniyum',     xp:4,  yp:6,  cat:'transition',    density:13.31,     mp:2233,    radio:false, unstable:false, iso:['¹⁷⁶Hf','¹⁷⁷Hf','¹⁷⁸Hf']},
+  {n:73, s:'Ta', name:'Tantal',       xp:5,  yp:6,  cat:'transition',    density:16.69,     mp:3017,    radio:false, unstable:false, iso:['¹⁸⁰Ta','¹⁸¹Ta']},
+  {n:74, s:'W',  name:'Wolfram',      xp:6,  yp:6,  cat:'transition',    density:19.25,     mp:3422,    radio:false, unstable:false, iso:['¹⁸²W','¹⁸³W','¹⁸⁴W']},
+  {n:75, s:'Re', name:'Renyum',       xp:7,  yp:6,  cat:'transition',    density:21.02,     mp:3186,    radio:false, unstable:false, iso:['¹⁸⁵Re','¹⁸⁷Re']},
+  {n:76, s:'Os', name:'Osmiyum',      xp:8,  yp:6,  cat:'transition',    density:22.59,     mp:3033,    radio:false, unstable:false, iso:['¹⁸⁶Os','¹⁸⁷Os','¹⁸⁸Os']},
+  {n:77, s:'Ir', name:'İridyum',      xp:9,  yp:6,  cat:'transition',    density:22.56,     mp:2466,    radio:false, unstable:false, iso:['¹⁹¹Ir','¹⁹³Ir']},
+  {n:78, s:'Pt', name:'Platin',       xp:10, yp:6,  cat:'transition',    density:21.45,     mp:1768,    radio:false, unstable:false, iso:['¹⁹⁵Pt','¹⁹⁴Pt']},
+  {n:79, s:'Au', name:'Altın',        xp:11, yp:6,  cat:'transition',    density:19.3,      mp:1064,    radio:false, unstable:false, iso:['¹⁹⁷Au']},
+  {n:80, s:'Hg', name:'Cıva',         xp:12, yp:6,  cat:'transition',    density:13.53,     mp:-38.84,  radio:false, unstable:false, iso:['¹⁹⁸Hg','²⁰⁰Hg','²⁰²Hg']},
+  {n:81, s:'Tl', name:'Talyum',       xp:13, yp:6,  cat:'post',          density:11.85,     mp:304,     radio:false, unstable:false, iso:['²⁰³Tl','²⁰⁵Tl']},
+  {n:82, s:'Pb', name:'Kurşun',       xp:14, yp:6,  cat:'post',          density:11.34,     mp:327.5,   radio:false, unstable:false, iso:['²⁰⁶Pb','²⁰⁷Pb','²⁰⁸Pb']},
+  {n:83, s:'Bi', name:'Bizmut',       xp:15, yp:6,  cat:'post',          density:9.747,     mp:271.5,   radio:false, unstable:false, iso:['²⁰⁹Bi']},
+  {n:84, s:'Po', name:'Polonyum',     xp:16, yp:6,  cat:'metalloid',     density:9.32,      mp:254,     radio:true,  unstable:true,  iso:['²⁰⁸Po','²⁰⁹Po','²¹⁰Po']},
+  {n:85, s:'At', name:'Astatin',      xp:17, yp:6,  cat:'halogen',       density:7.0,       mp:302,     radio:true,  unstable:true,  iso:['²¹⁰At','²¹¹At']},
+  {n:86, s:'Rn', name:'Radon',        xp:18, yp:6,  cat:'noble',         density:0.00973,   mp:-71.15,  radio:true,  unstable:true,  iso:['²²²Rn']},
+  {n:87, s:'Fr', name:'Fransiyum',    xp:1,  yp:7,  cat:'alkali',        density:1.87,      mp:21,      radio:true,  unstable:true,  iso:['²²³Fr']},
+  {n:88, s:'Ra', name:'Radyum',       xp:2,  yp:7,  cat:'alkaline',      density:5.5,       mp:700,     radio:true,  unstable:true,  iso:['²²⁶Ra','²²⁸Ra']},
+  {n:89, s:'Ac', name:'Aktinyum',     xp:3,  yp:10, cat:'actinide',      density:10.07,     mp:1051,    radio:true,  unstable:true,  iso:['²²⁷Ac']},
+  {n:90, s:'Th', name:'Toryum',       xp:4,  yp:10, cat:'actinide',      density:11.724,    mp:1750,    radio:true,  unstable:false, iso:['²³²Th']},
+  {n:91, s:'Pa', name:'Protaktinyum', xp:5,  yp:10, cat:'actinide',      density:15.37,     mp:1572,    radio:true,  unstable:true,  iso:['²³¹Pa']},
+  {n:92, s:'U',  name:'Uranyum',      xp:6,  yp:10, cat:'actinide',      density:19.05,     mp:1135,    radio:true,  unstable:false, iso:['²³⁴U','²³⁵U','²³⁸U']},
+  {n:93, s:'Np', name:'Neptünyum',    xp:7,  yp:10, cat:'actinide',      density:20.45,     mp:637,     radio:true,  unstable:true,  iso:['²³⁷Np','²³⁹Np']},
+  {n:94, s:'Pu', name:'Plutonyum',    xp:8,  yp:10, cat:'actinide',      density:19.816,    mp:640,     radio:true,  unstable:true,  iso:['²³⁸Pu','²³⁹Pu','²⁴⁴Pu']},
+  {n:95, s:'Am', name:'Amerikyum',    xp:9,  yp:10, cat:'actinide',      density:13.67,     mp:1176,    radio:true,  unstable:true,  iso:['²⁴¹Am','²⁴³Am']},
+  {n:96, s:'Cm', name:'Küryum',       xp:10, yp:10, cat:'actinide',      density:13.51,     mp:1345,    radio:true,  unstable:true,  iso:['²⁴⁴Cm','²⁴⁸Cm']},
+  {n:97, s:'Bk', name:'Berkelyum',    xp:11, yp:10, cat:'actinide',      density:14.79,     mp:986,     radio:true,  unstable:true,  iso:['²⁴⁷Bk','²⁴⁹Bk']},
+  {n:98, s:'Cf', name:'Kaliforniyum', xp:12, yp:10, cat:'actinide',      density:15.1,      mp:900,     radio:true,  unstable:true,  iso:['²⁴⁹Cf','²⁵²Cf']},
+  {n:99, s:'Es', name:'Aynştaynyum',  xp:13, yp:10, cat:'actinide',      density:8.84,      mp:860,     radio:true,  unstable:true,  iso:['²⁵²Es','²⁵³Es']},
+  {n:100,s:'Fm', name:'Fermiyum',     xp:14, yp:10, cat:'actinide',      density:null,      mp:1527,    radio:true,  unstable:true,  iso:['²⁵⁷Fm']},
+  {n:101,s:'Md', name:'Mendelevyum',  xp:15, yp:10, cat:'actinide',      density:null,      mp:827,     radio:true,  unstable:true,  iso:['²⁵⁸Md','²⁵⁶Md']},
+  {n:102,s:'No', name:'Nobelyum',     xp:16, yp:10, cat:'actinide',      density:null,      mp:827,     radio:true,  unstable:true,  iso:['²⁵⁹No','²⁵⁴No']},
+  {n:103,s:'Lr', name:'Lavrensiyum',  xp:17, yp:10, cat:'actinide',      density:null,      mp:1627,    radio:true,  unstable:true,  iso:['²⁶²Lr']},
+  {n:104,s:'Rf', name:'Rutherfordyum',xp:4,  yp:7,  cat:'transition',    density:23.2,      mp:2400,    radio:true,  unstable:true,  iso:['²⁶⁵Rf','²⁶⁷Rf']},
+  {n:105,s:'Db', name:'Dubniyum',     xp:5,  yp:7,  cat:'transition',    density:29.3,      mp:null,    radio:true,  unstable:true,  iso:['²⁶⁸Db']},
+  {n:106,s:'Sg', name:'Seaborgiyum',  xp:6,  yp:7,  cat:'transition',    density:35.0,      mp:null,    radio:true,  unstable:true,  iso:['²⁶⁹Sg','²⁷¹Sg']},
+  {n:107,s:'Bh', name:'Böryum',       xp:7,  yp:7,  cat:'transition',    density:37.1,      mp:null,    radio:true,  unstable:true,  iso:['²⁷⁰Bh','²⁷²Bh']},
+  {n:108,s:'Hs', name:'Hasiyum',      xp:8,  yp:7,  cat:'transition',    density:40.7,      mp:null,    radio:true,  unstable:true,  iso:['²⁶⁹Hs','²⁷⁷Hs']},
+  {n:109,s:'Mt', name:'Meitnerium',   xp:9,  yp:7,  cat:'unknown',       density:37.4,      mp:null,    radio:true,  unstable:true,  iso:['²⁷⁸Mt']},
+  {n:110,s:'Ds', name:'Darmstadtyum', xp:10, yp:7,  cat:'unknown',       density:34.8,      mp:null,    radio:true,  unstable:true,  iso:['²⁸¹Ds']},
+  {n:111,s:'Rg', name:'Röntgenyum',   xp:11, yp:7,  cat:'unknown',       density:28.7,      mp:null,    radio:true,  unstable:true,  iso:['²⁸²Rg']},
+  {n:112,s:'Cn', name:'Kopernikyum',  xp:12, yp:7,  cat:'transition',    density:23.7,      mp:null,    radio:true,  unstable:true,  iso:['²⁸³Cn','²⁸⁵Cn']},
+  {n:113,s:'Nh', name:'Nihonyum',     xp:13, yp:7,  cat:'unknown',       density:16.0,      mp:null,    radio:true,  unstable:true,  iso:['²⁸⁶Nh']},
+  {n:114,s:'Fl', name:'Flerovyum',    xp:14, yp:7,  cat:'unknown',       density:14.0,      mp:null,    radio:true,  unstable:true,  iso:['²⁸⁹Fl']},
+  {n:115,s:'Mc', name:'Moskovyum',    xp:15, yp:7,  cat:'unknown',       density:13.5,      mp:null,    radio:true,  unstable:true,  iso:['²⁸⁸Mc','²⁸⁹Mc']},
+  {n:116,s:'Lv', name:'Livermoriyum', xp:16, yp:7,  cat:'unknown',       density:12.9,      mp:null,    radio:true,  unstable:true,  iso:['²⁹³Lv']},
+  {n:117,s:'Ts', name:'Tennessin',    xp:17, yp:7,  cat:'unknown',       density:7.1,       mp:null,    radio:true,  unstable:true,  iso:['²⁹³Ts','²⁹⁴Ts']},
+  {n:118,s:'Og', name:'Oganesson',    xp:18, yp:7,  cat:'unknown',       density:5.0,       mp:null,    radio:true,  unstable:true,  iso:['²⁹⁴Og']},
+];
+
+const CAT_COLOR = {
+  alkali:     '#ff6b6b',
+  alkaline:   '#ffa94d',
+  transition: '#4dabf7',
+  post:       '#69db7c',
+  metalloid:  '#e599f7',
+  nonmetal:   '#63e6be',
+  halogen:    '#f783ac',
+  noble:      '#a9e34b',
+  lanthanide: '#74c0fc',
+  actinide:   '#ff8787',
+  unknown:    '#adb5bd',
+};
+
+// ─── GRID BUILDER ────────────────────────────────────────────────────────────
+const grid = document.getElementById('grid');
+
+// Build lookup map
+const cellMap = {};
+ELEMENTS.forEach(el => { cellMap[`${el.xp}-${el.yp}`] = el; });
+
+// Special label cells
+const seriesLabels = {
+  '3-6': 'Ln→',
+  '3-7': 'Ac→',
+};
+
+// Rows 8: gap row (blank separator between rows 7 and 9)
+// Row 8 = visual gap row
+for (let row = 1; row <= 10; row++) {
+  for (let col = 1; col <= 18; col++) {
+    const key = `${col}-${row}`;
+    const el = cellMap[key];
+    const div = document.createElement('div');
+
+    if (row === 8) {
+      // Gap / separator row
+      div.className = 'element-cell gap-cell';
+      div.style.height = '10px';
+      div.style.gridColumn = col;
+      div.style.gridRow = row;
+      grid.appendChild(div);
+      continue;
+    }
+
+    if (el) {
+      const color = CAT_COLOR[el.cat] || '#adb5bd';
+      div.className = 'element-cell';
+      div.style.cssText = `grid-column:${col}; grid-row:${row}; --cat-color:${color};`;
+      div.dataset.n = el.n;
+
+      div.innerHTML = `
+        ${el.radio ? '<span class="badge-radio">☢</span>' : ''}
+        ${el.unstable ? '<span class="badge-unstable">⚠</span>' : ''}
+        <span class="atomic-num">${el.n}</span>
+        <span class="symbol">${el.s}</span>
+        <span class="el-name">${el.name}</span>
+      `;
+      div.addEventListener('click', () => selectElement(el, div));
+    } else if (seriesLabels[key]) {
+      div.className = 'series-label-cell';
+      div.style.cssText = `grid-column:${col}; grid-row:${row};`;
+      div.textContent = seriesLabels[key];
+    } else {
+      div.className = 'element-cell gap-cell';
+      div.style.cssText = `grid-column:${col}; grid-row:${row}; background:transparent; border:none;`;
+    }
+
+    grid.appendChild(div);
+  }
+}
+
+// ─── THREE.JS SETUP ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('three-canvas');
+const container = document.getElementById('three-canvas-container');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x050810, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 0, 3.5);
+
+// Lighting
+const ambLight = new THREE.AmbientLight(0x112244, 1.5);
+scene.add(ambLight);
+const pointLight1 = new THREE.PointLight(0x00d4ff, 3, 20);
+pointLight1.position.set(3, 3, 3);
+scene.add(pointLight1);
+const pointLight2 = new THREE.PointLight(0x00ff9d, 2, 20);
+pointLight2.position.set(-3, -2, 2);
+scene.add(pointLight2);
+
+// Atom nucleus
+const nucleusMat = new THREE.MeshPhongMaterial({
+  color: 0x00d4ff,
+  emissive: 0x004488,
+  shininess: 100,
+  specular: 0x88ddff,
+});
+const nucleusGeo = new THREE.SphereGeometry(0.55, 64, 64);
+const nucleus = new THREE.Mesh(nucleusGeo, nucleusMat);
+scene.add(nucleus);
+
+// Glow ring
+const ringGeo = new THREE.TorusGeometry(0.85, 0.02, 16, 100);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, opacity: 0.5, transparent: true });
+const ring1 = new THREE.Mesh(ringGeo, ringMat);
+ring1.rotation.x = Math.PI / 3;
+scene.add(ring1);
+
+const ring2 = new THREE.Mesh(ringGeo.clone(), new THREE.MeshBasicMaterial({ color: 0x00ff9d, opacity: 0.3, transparent: true }));
+ring2.rotation.x = -Math.PI / 4;
+ring2.rotation.y = Math.PI / 6;
+scene.add(ring2);
+
+// Electron
+const electronGeo = new THREE.SphereGeometry(0.07, 16, 16);
+const electronMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const electron = new THREE.Mesh(electronGeo, electronMat);
+scene.add(electron);
+
+// Particle field (dots around nucleus)
+const particlesGeo = new THREE.BufferGeometry();
+const pCount = 120;
+const pPositions = new Float32Array(pCount * 3);
+for (let i = 0; i < pCount; i++) {
+  const r = 1.2 + Math.random() * 0.8;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.random() * Math.PI;
+  pPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  pPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  pPositions[i * 3 + 2] = r * Math.cos(phi);
+}
+particlesGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+const particlesMat = new THREE.PointsMaterial({ color: 0x00d4ff, size: 0.025, transparent: true, opacity: 0.6 });
+const particles = new THREE.Points(particlesGeo, particlesMat);
+scene.add(particles);
+
+let isRadioactive = false;
+let shakeTime = 0;
+let selectedColor = new THREE.Color(0x00d4ff);
+
+function resizeRenderer() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resizeRenderer();
+window.addEventListener('resize', resizeRenderer);
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.016;
+
+  nucleus.rotation.y = t * 0.4;
+  nucleus.rotation.x = t * 0.15;
+  ring1.rotation.z = t * 0.6;
+  ring2.rotation.y = t * 0.4;
+  particles.rotation.y = t * 0.08;
+  particles.rotation.x = t * 0.05;
+
+  // Electron orbit
+  electron.position.x = Math.cos(t * 1.8) * 0.85;
+  electron.position.z = Math.sin(t * 1.8) * 0.85;
+  electron.position.y = Math.sin(t * 1.8 * 0.3) * 0.3;
+
+  // Shake effect for radioactive
+  if (isRadioactive) {
+    shakeTime += 0.016;
+    const shake = Math.sin(shakeTime * 18) * 0.06 * (0.5 + 0.5 * Math.sin(shakeTime * 3));
+    nucleus.position.x = shake;
+    nucleus.position.y = Math.cos(shakeTime * 15) * 0.04;
+    pointLight1.intensity = 3 + Math.sin(shakeTime * 12) * 1.5;
+  } else {
+    shakeTime = 0;
+    nucleus.position.x = 0;
+    nucleus.position.y = 0;
+    pointLight1.intensity = 3;
+  }
+
+  // Pulse
+  const pulse = 1 + Math.sin(t * 2) * 0.04;
+  nucleus.scale.setScalar(pulse);
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ─── ELEMENT IMAGES (Wikimedia Commons) ─────────────────────────────────────
+// Only elements where a real photo/sample image is meaningful & available
+const ELEMENT_IMAGES = {
+  1:  'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Slandscape.jpg/320px-Slandscape.jpg', // H gas (placeholder - liquid H)
+  2:  null, // He - colourless gas, no good sample photo
+  3:  'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Lithium_paraffin.jpg/320px-Lithium_paraffin.jpg',
+  4:  'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Beryllium_%28Be%29.jpg/320px-Beryllium_%28Be%29.jpg',
+  5:  'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Boron.jpg/320px-Boron.jpg',
+  6:  'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Graphite-and-diamond-with-scale.jpg/320px-Graphite-and-diamond-with-scale.jpg',
+  7:  null,
+  8:  null,
+  9:  null,
+  10: null,
+  11: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Na_%28Sodium%29.jpg/320px-Na_%28Sodium%29.jpg',
+  12: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Mg_chips.jpg/320px-Mg_chips.jpg',
+  13: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Aluminium-4.jpg/320px-Aluminium-4.jpg',
+  14: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Silicon.jpg/320px-Silicon.jpg',
+  15: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/White_and_red_phosphorus.jpg/320px-White_and_red_phosphorus.jpg',
+  16: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Sulfur_-_El_Desierto_mine%2C_San_Pablo_de_Napa%2C_Daniel_Campos_Province%2C_Potos%C3%AD%2C_Bolivia.jpg/320px-Sulfur_-_El_Desierto_mine%2C_San_Pablo_de_Napa%2C_Daniel_Campos_Province%2C_Potos%C3%AD%2C_Bolivia.jpg',
+  17: null,
+  18: null,
+  19: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Potassium_by_RGB.jpg/320px-Potassium_by_RGB.jpg',
+  20: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Calcium_unter_Argon_Schutzgas_Atmosphaere.jpg/320px-Calcium_unter_Argon_Schutzgas_Atmosphaere.jpg',
+  21: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Scandium_sublimed_dendritic_and_1cm3_cube.jpg/320px-Scandium_sublimed_dendritic_and_1cm3_cube.jpg',
+  22: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Titanium_shavings.jpg/320px-Titanium_shavings.jpg',
+  23: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Vanadium_bar.jpg/320px-Vanadium_bar.jpg',
+  24: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Chromium_crystals_and_1cm3_cube.jpg/320px-Chromium_crystals_and_1cm3_cube.jpg',
+  25: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Manganese_electrolytic_and_1cm3_cube.jpg/320px-Manganese_electrolytic_and_1cm3_cube.jpg',
+  26: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Iron_electrolytic_and_1cm3_cube.jpg/320px-Iron_electrolytic_and_1cm3_cube.jpg',
+  27: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Cobalt_electrolytic_and_1cm3_cube.jpg/320px-Cobalt_electrolytic_and_1cm3_cube.jpg',
+  28: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Nickel_chunk.jpg/320px-Nickel_chunk.jpg',
+  29: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Copper_-_element_29_-_from_Wikipedia_-_no_shadow.jpg/320px-Copper_-_element_29_-_from_Wikipedia_-_no_shadow.jpg',
+  30: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Zinc_fragment_sublimed_and_1cm3_cube.jpg/320px-Zinc_fragment_sublimed_and_1cm3_cube.jpg',
+  31: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Gallium1_640x480.jpg/320px-Gallium1_640x480.jpg',
+  32: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Germanium.jpg/320px-Germanium.jpg',
+  33: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Arsenic_crystals.jpg/320px-Arsenic_crystals.jpg',
+  34: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/SeBlackRed.jpg/320px-SeBlackRed.jpg',
+  35: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Bromine-sample.jpg/320px-Bromine-sample.jpg',
+  36: null,
+  37: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Rb5.JPG/320px-Rb5.JPG',
+  38: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Strontium_unter_Argon_Schutzgas_Atmosphaere.jpg/320px-Strontium_unter_Argon_Schutzgas_Atmosphaere.jpg',
+  39: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Yttrium_sublimed_dendritic_and_1cm3_cube.jpg/320px-Yttrium_sublimed_dendritic_and_1cm3_cube.jpg',
+  40: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Zirconium_crystal_bar_and_1cm3_cube.jpg/320px-Zirconium_crystal_bar_and_1cm3_cube.jpg',
+  41: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Niobium_bar.jpg/320px-Niobium_bar.jpg',
+  42: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Molybdenum_crystals_and_1cm3_cube.jpg/320px-Molybdenum_crystals_and_1cm3_cube.jpg',
+  43: null, // Tc synthetic - no good public sample photo
+  44: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Ruthenium_crystals.jpg/320px-Ruthenium_crystals.jpg',
+  45: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Rhodium_powder_pressed_melted.jpg/320px-Rhodium_powder_pressed_melted.jpg',
+  46: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Palladium_%281%29.jpg/320px-Palladium_%281%29.jpg',
+  47: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Silver_crystal.jpg/320px-Silver_crystal.jpg',
+  48: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Cadmium-crystal_bar.jpg/320px-Cadmium-crystal_bar.jpg',
+  49: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Indium.jpg/320px-Indium.jpg',
+  50: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Sn-alpha-and-beta.jpg/320px-Sn-alpha-and-beta.jpg',
+  51: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Antimony-4.jpg/320px-Antimony-4.jpg',
+  52: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Tellurium2.jpg/320px-Tellurium2.jpg',
+  53: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Iodine-sample.jpg/320px-Iodine-sample.jpg',
+  54: null,
+  55: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Cesium.jpg/320px-Cesium.jpg',
+  56: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Barium_unter_Argon_Schutzgas_Atmosphaere.jpg/320px-Barium_unter_Argon_Schutzgas_Atmosphaere.jpg',
+  57: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Lanthanum.jpg/320px-Lanthanum.jpg',
+  58: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Cerium2.jpg/320px-Cerium2.jpg',
+  59: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Praseodymium.jpg/320px-Praseodymium.jpg',
+  60: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Neodymium2.jpg/320px-Neodymium2.jpg',
+  61: null,
+  62: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Samarium-2.jpg/320px-Samarium-2.jpg',
+  63: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Europium.jpg/320px-Europium.jpg',
+  64: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Gadolinium-4.jpg/320px-Gadolinium-4.jpg',
+  65: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Terbium-2.jpg/320px-Terbium-2.jpg',
+  66: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Dy%2866%29.jpg/320px-Dy%2866%29.jpg',
+  67: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Holmium2.jpg/320px-Holmium2.jpg',
+  68: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Erbium-crop.jpg/320px-Erbium-crop.jpg',
+  69: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Thulium_sublimed_dendritic_and_1cm3_cube.jpg/320px-Thulium_sublimed_dendritic_and_1cm3_cube.jpg',
+  70: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Ytterbium-3.jpg/320px-Ytterbium-3.jpg',
+  71: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Lutetium_sublimed_dendritic_and_1cm3_cube.jpg/320px-Lutetium_sublimed_dendritic_and_1cm3_cube.jpg',
+  72: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Hafnium_crystals_bar.jpg/320px-Hafnium_crystals_bar.jpg',
+  73: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Tantalum_single_crystal_bar_and_1cm3_cube.jpg/320px-Tantalum_single_crystal_bar_and_1cm3_cube.jpg',
+  74: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Wolfram_evaporated_crystals_and_1cm3_cube.jpg/320px-Wolfram_evaporated_crystals_and_1cm3_cube.jpg',
+  75: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Rhenium_single_crystal_bar_and_1cm3_cube.jpg/320px-Rhenium_single_crystal_bar_and_1cm3_cube.jpg',
+  76: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Osmium_crystals.jpg/320px-Osmium_crystals.jpg',
+  77: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Iridium-2.jpg/320px-Iridium-2.jpg',
+  78: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Platinum_crystals.jpg/320px-Platinum_crystals.jpg',
+  79: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Gold_crystals.jpg/320px-Gold_crystals.jpg',
+  80: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Mercury_in_a_flask.jpg/320px-Mercury_in_a_flask.jpg',
+  81: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Thallium_pieces_in_ampoule.jpg/320px-Thallium_pieces_in_ampoule.jpg',
+  82: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Lead-2.jpg/320px-Lead-2.jpg',
+  83: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Bismuth_crystal_macro.jpg/320px-Bismuth_crystal_macro.jpg',
+  84: null,
+  85: null,
+  86: null,
+  87: null,
+  88: null,
+  89: null,
+  90: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Thorium_crystals_and_1cm3_cube.jpg/320px-Thorium_crystals_and_1cm3_cube.jpg',
+  91: null,
+  92: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Uranium-crystals.jpg/320px-Uranium-crystals.jpg',
+  93: null,
+  94: null,
+  95: null,
+  96: null,
+  97: null,
+  98: null,
+  99: null,
+  100: null,
+  101: null,
+  102: null,
+  103: null,
+  104: null,
+  105: null,
+  106: null,
+  107: null,
+  108: null,
+  109: null,
+  110: null,
+  111: null,
+  112: null,
+  113: null,
+  114: null,
+  115: null,
+  116: null,
+  117: null,
+  118: null,
+};
+
+// ─── ELEMENT SELECTION ───────────────────────────────────────────────────────
+let selectedCell = null;
+
+function selectElement(el, cellEl) {
+  // Deselect previous
+  if (selectedCell) selectedCell.classList.remove('selected');
+  selectedCell = cellEl;
+  cellEl.classList.add('selected');
+
+  // Three.js update
+  const color = new THREE.Color(CAT_COLOR[el.cat] || '#4dabf7');
+  nucleusMat.color.set(color);
+  nucleusMat.emissive.set(color.clone().multiplyScalar(0.3));
+  particlesMat.color.set(color);
+  ringMat.color.set(color);
+  ring2.material.color.set(new THREE.Color(CAT_COLOR[el.cat] || '#00ff9d').lerp(new THREE.Color('#ffffff'), 0.3));
+  pointLight1.color.set(color);
+  isRadioactive = el.radio;
+
+  // Detail card
+  const card = document.getElementById('detail-card');
+  const ph = document.getElementById('placeholder');
+  ph.style.display = 'none';
+  card.className = 'detail-card visible';
+  card.style.borderColor = CAT_COLOR[el.cat] || '#30363d';
+
+  const densityVal = el.density !== null ? `${el.density} g/cm³` : 'Bilinmiyor';
+  const mpVal = el.mp !== null ? `${el.mp}°C` : 'Bilinmiyor';
+  const imgUrl = ELEMENT_IMAGES[el.n];
+
+  const imgHTML = imgUrl ? `
+    <div class="element-photo-wrap">
+      <img
+        class="element-photo"
+        src="${imgUrl}"
+        alt="${el.name} fotoğrafı"
+        loading="lazy"
+        onerror="this.parentElement.style.display='none'"
+      />
+      <div class="photo-label">NUMUNE FOTOĞRAFI</div>
+    </div>
+  ` : '';
+
+  card.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-symbol" style="color:${CAT_COLOR[el.cat]};filter:drop-shadow(0 0 10px ${CAT_COLOR[el.cat]})">${el.s}</div>
+      <div class="detail-meta">
+        <div class="detail-name">${el.name}</div>
+        <div class="detail-num">Atom No: ${el.n}</div>
+        <div class="detail-badges" style="margin-top:4px">
+          ${el.radio ? '<span class="badge badge-r">☢ RADYOAKTİF</span>' : ''}
+          ${el.unstable ? '<span class="badge badge-u">⚠ KARARSIZ</span>' : ''}
+        </div>
+      </div>
+    </div>
+    ${imgHTML}
+    <div class="detail-stats">
+      <div class="stat-item">
+        <div class="stat-label">YOĞUNLUK</div>
+        <div class="stat-value" style="color:${CAT_COLOR[el.cat]}">${densityVal}</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">ERİME NOKTAS.</div>
+        <div class="stat-value" style="color:${CAT_COLOR[el.cat]}">${mpVal}</div>
+      </div>
+    </div>
+    <div class="isotopes-section">
+      <div class="isotopes-label">İZOTOPLAR</div>
+      <div class="isotopes-list">
+        ${el.iso.map(i => `<span class="iso-pill">${i}</span>`).join('')}
+      </div>
+    </div>
+  `;
+}
+</script>
+</body>
+  </html>
