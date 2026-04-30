@@ -473,7 +473,7 @@
 <body>
 
 <header>
-  <h1>⚛ PERİYODİK TABLO</h1>
+  <h1>⚛ PERIODIC TABLE</h1>
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div>Alkali Metal</div>
     <div class="legend-item"><div class="legend-dot" style="background:#ffa94d"></div>Toprak Alkali</div>
@@ -497,7 +497,7 @@
     <div class="right-panel">
       <div id="three-canvas-container">
         <canvas id="three-canvas"></canvas>
-        <div class="three-label">3D ATOM VİZÜALİZER</div>
+        <div class="three-label">3D ATOM VISUALIZER</div>
       </div>
 
       <div id="detail-card" class="detail-card">
@@ -977,8 +977,8 @@ function selectElement(el, cellEl) {
   card.className = 'detail-card visible';
   card.style.borderColor = CAT_COLOR[el.cat] || '#30363d';
 
-  const densityVal = el.density !== null ? `${el.density} g/cm³` : 'Bilinmiyor';
-  const mpVal = el.mp !== null ? `${el.mp}°C` : 'Bilinmiyor';
+  const densityVal = el.density !== null ? `${el.density} g/cm³` : 'Unknowm';
+  const mpVal = el.mp !== null ? `${el.mp}°C` : 'Unknown';
   const imgUrl = ELEMENT_IMAGES[el.n];
 
   const imgHTML = imgUrl ? `
@@ -986,7 +986,7 @@ function selectElement(el, cellEl) {
       <img
         class="element-photo"
         src="${imgUrl}"
-        alt="${el.name} fotoğrafı"
+        alt="${el.name} picture"
         loading="lazy"
         onerror="this.parentElement.style.display='none'"
       />
@@ -1001,8 +1001,8 @@ function selectElement(el, cellEl) {
         <div class="detail-name">${el.name}</div>
         <div class="detail-num">Atom No: ${el.n}</div>
         <div class="detail-badges" style="margin-top:4px">
-          ${el.radio ? '<span class="badge badge-r">☢ RADYOAKTİF</span>' : ''}
-          ${el.unstable ? '<span class="badge badge-u">⚠ KARARSIZ</span>' : ''}
+          ${el.radio ? '<span class="badge badge-r">☢ RADIOACTIVE</span>' : ''}
+          ${el.unstable ? '<span class="badge badge-u">⚠ UNSTABLE</span>' : ''}
         </div>
       </div>
     </div>
